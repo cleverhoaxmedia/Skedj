@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Show Schedule</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,500&family=Courier+Prime:ital@0;1&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0a0a;
+    --surface: #111;
+    --border: #222;
+    --accent: #f5c842;
+    --accent2: #e84b3a;
+    --text: #f0ece0;
+    --muted: #888;
+    --font-display: 'Bebas Neue', sans-serif;
+    --font-body: 'DM Sans', sans-serif;
+    --font-mono: 'Courier Prime', monospace;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    padding: 0;
+    margin: 0;
+  }
+
+  /* SCHEDULE HEADER */
+  .schedule-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem 2rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .section-title {
+    font-family: var(--font-display);
+    font-size: 1.8rem;
+    letter-spacing: 0.1em;
+    color: var(--text);
+  }
+
+  /* TABLE */
+  .schedule-table { width: 100%; border-collapse: collapse; }
+
+  .schedule-row {
+    display: grid;
+    grid-template-columns: 5rem 1fr 1.5fr 5rem 5rem 7rem 9rem;
+    border-bottom: 1px solid var(--border);
+    align-items: center;
+    transition: background 0.15s;
+  }
+  .schedule-row:not(.header-row):hover { background: #141414; }
+  .header-row { background: #0d0d0d; }
+
+  .schedule-cell {
+    padding: 1.1rem 1.2rem;
+    font-size: 0.9rem;
+  }
+
+  .header-row .schedule-cell {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  /* DATE CELL */
+  .cell-date strong {
+    display: block;
+    font-size: 1.4rem;
+    font-family: var(--font-display);
+    color: var(--text);
+    line-height: 1;
+    letter-spacing: 0.05em;
+  }
+  .cell-date span {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
+  /* SHOW TITLE + BADGE */
+  .cell-title {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .cell-title-text {
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: var(--text);
+  }
+  .badge-img {
+    height: 24px;
+    width: auto;
+    object-fit: contain;
+  }
+
+  /* OTHER CELLS */
+  .cell-venue { color: var(--muted); font-size: 0.85rem; }
+  .cell-time  { font-family: var(--font-mono); font-size: 0.8rem; color: var(--text); }
+  .cell-city  { font-size: 0.8rem; color: var(--muted); }
+
+  /* TICKET BUTTON */
+  .btn-tickets {
+    display: inline-block;
+    padding: 0.45rem 1rem;
+    background: var(--accent);
+    color: #000;
+    text-decoration: none;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    transition: background 0.2s;
+    white-space: nowrap;
+  }
+  .btn-tickets:hover { background: #ffd94a; }
+
+  /* MONTH DIVIDER */
+  .month-divider {
+    padding: 0.75rem 1.5rem;
+    background: #0d0d0d;
+    font-family: var(--font-display);
+    font-size: 0.85rem;
+    letter-spacing: 0.2em;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+    text-transform: uppercase;
+  }
+
+  /* STATES */
+  .loading, .error, .empty {
+    padding: 3rem 2rem;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    text-align: center;
+  }
+  .error { color: var(--accent2); }
+
+  /* RESPONSIVE */
+  @media (max-width: 700px) {
+    .schedule-row {
+      grid-template-columns: 4rem 1fr 1fr 6rem;
+    }
+    .cell-venue, .cell-city { display: none; }
+    .col-venue, .col-city { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="schedule-header">
+  <div class="section-title">Upcoming Shows</div>
+</div>
+
+<div id="schedule-container">
+  <div class="loading">Loading schedule…</div>
+</div>
+
+<script>
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // CONFIGURATION — only edit these two lines
+  const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQpXOrXHP-TEW7S19r-BSy_pyoXMnwyxhSy7nwjExY0Cvvsbf3K0SlWOXjsdbmbuM8wAB9csOhE1WB8/pub?gid=1739251150&single=true&output=csv";
+  const SHOW_TAG  = "friday-night-chaos"; // ← change this per show page
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  // Base URL for badge images — update to your GitHub Pages URL once deployed
+  const BADGE_BASE_URL = "./badges/";
+
+  const MONTHS = ["January","February","March","April","May","June",
+                  "July","August","September","October","November","December"];
+  const DAYS   = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+
+  function parseCSV(text) {
+    const lines = text.trim().split("\n");
+    const headers = lines[0].split(",").map(h => h.trim().replace(/^"|"$/g, ""));
+    return lines.slice(1).map(line => {
+      // Handle quoted fields with commas inside
+      const cols = [];
+      let current = "", inQuotes = false;
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (ch === '"') { inQuotes = !inQuotes; }
+        else if (ch === "," && !inQuotes) { cols.push(current.trim()); current = ""; }
+        else { current += ch; }
+      }
+      cols.push(current.trim());
+      const row = {};
+      headers.forEach((h, i) => row[h] = (cols[i] || "").replace(/^"|"$/g, "").trim());
+      return row;
+    });
+  }
+
+  function formatDate(dateStr) {
+    const d = new Date(dateStr);
+    if (isNaN(d)) return { day: "?", dayName: "?", month: "?" };
+    return {
+      day:     d.getDate(),
+      dayName: DAYS[d.getDay()],
+      month:   MONTHS[d.getMonth()] + " " + d.getFullYear()
+    };
+  }
+
+  function buildSchedule(rows) {
+    const container = document.getElementById("schedule-container");
+
+    // Filter by tag, then sort by date
+    const filtered = rows
+      .filter(r => r["Tag"] && r["Tag"].toLowerCase() === SHOW_TAG.toLowerCase())
+      .filter(r => r["Date"])
+      .sort((a, b) => new Date(a["Date"]) - new Date(b["Date"]));
+
+    if (filtered.length === 0) {
+      container.innerHTML = '<div class="empty">No upcoming shows scheduled.</div>';
+      return;
+    }
+
+    let html = `
+      <div class="schedule-row header-row">
+        <div class="schedule-cell">Date</div>
+        <div class="schedule-cell">Show</div>
+        <div class="schedule-cell col-venue">Venue</div>
+        <div class="schedule-cell">Time</div>
+        <div class="schedule-cell col-city">City</div>
+        <div class="schedule-cell">Badge</div>
+        <div class="schedule-cell"></div>
+      </div>`;
+
+    let lastMonth = null;
+
+    filtered.forEach(row => {
+      const d = formatDate(row["Date"]);
+
+      if (d.month !== lastMonth) {
+        html += `<div class="month-divider">${d.month}</div>`;
+        lastMonth = d.month;
+      }
+
+      const badge = row["Badge"]
+        ? `<img class="badge-img" src="${BADGE_BASE_URL}${row["Badge"]}" alt="${row["Badge"].replace(/\.png$/i,'').replace(/-/g,' ')}">`
+        : "";
+
+      const ticketBtn = row["Ticket Link"]
+        ? `<a class="btn-tickets" href="${row["Ticket Link"]}" target="_blank" rel="noopener">Get Tickets →</a>`
+        : `<span style="font-family:var(--font-mono);font-size:0.7rem;color:var(--muted)">TBA</span>`;
+
+      html += `
+        <div class="schedule-row">
+          <div class="schedule-cell">
+            <div class="cell-date">
+              <strong>${d.day}</strong>
+              <span>${d.dayName}</span>
+            </div>
+          </div>
+          <div class="schedule-cell">
+            <div class="cell-title">
+              <span class="cell-title-text">${row["Show Title"] || ""}</span>
+              ${badge}
+            </div>
+          </div>
+          <div class="schedule-cell cell-venue col-venue">${row["Venue"] || ""}</div>
+          <div class="schedule-cell cell-time">${row["Time"] || ""}</div>
+          <div class="schedule-cell cell-city col-city">${row["City, ST"] || ""}</div>
+          <div class="schedule-cell">${badge ? "" : ""}</div>
+          <div class="schedule-cell">${ticketBtn}</div>
+        </div>`;
+    });
+
+    container.innerHTML = html;
+  }
+
+  async function loadSchedule() {
+    try {
+      const res = await fetch(SHEET_URL);
+      if (!res.ok) throw new Error("Network response was not ok");
+      const text = await res.text();
+      const rows = parseCSV(text);
+      buildSchedule(rows);
+    } catch (err) {
+      document.getElementById("schedule-container").innerHTML =
+        `<div class="error">Could not load schedule. Please try again later.</div>`;
+      console.error(err);
+    }
+  }
+
+  loadSchedule();
+</script>
+</body>
+</html>
